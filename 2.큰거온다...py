@@ -29,17 +29,6 @@ connection = mysql.connector.connect(
 # 커서 생성
 cursor = connection.cursor()
 
-# TODO: 쿼리 생성
-
-# TODO: PRECIPITATION_QUERY_____________________________________________________________________________________________
-# 인범
-
-# TODO: DATE_QUERY______________________________________________________________________________________________________
-# 인범
-
-# TODO: SUBWAY_DAY_QUERY________________________________________________________________________________________________
-# 있음
-
 # TODO: SUBWAY_LINE_QUERY_______________________________________________________________________________________________
 #
 # subway_line_query = """
@@ -119,13 +108,7 @@ cursor = connection.cursor()
 
 # id, 하차, 승차, precipitation id, subway_station_id
 
-# TODO:
-#  1. off_ , on_를 테이블에서 가져오고,
-#  2. 이거에 따라서 subway_station_id 를 넣어주고,
-#  3. 테이블에 일자에 따라서 precipitation id 가져오고
-#  4. id는 그냥 오토
-
-# 1 번
+# 1 번 # TODO: 데이터 합치기
 # 데이터 가져오기
 rename20 = data20[
     ['날짜', '호선', '역번호', '역명', '구분', '06:00 이전', '06:00 ~ 07:00', '07:00 ~ 08:00', '08:00 ~ 09:00', '09:00 ~ 10:00',
@@ -161,6 +144,8 @@ rename22['날짜'] = pd.to_datetime(rename22['날짜'], format='%Y.%m.%d')
 concatenated_df = pd.concat([rename20, rename21, rename22], axis=0)
 # print(concatenated_df.shape)  # 데이터 개수 20 - 202280 21 - 204374 22 - 199080 : 총 605734개
 
+# 2 번 # TODO: 승차 하차 컬럼 분할
+
 # 승하차 구분
 onBoard = concatenated_df[concatenated_df['구분'].str.contains('승차')]
 offBoard = concatenated_df[concatenated_df['구분'].str.contains('하차')]
@@ -172,7 +157,6 @@ oneline_onoff = pd.merge(onBoard, offBoard, on=['날짜', '역번호'], how='inn
 
 # 날짜 형식 변환 -왜 두번,,,
 oneline_onoff['날짜'] = pd.to_datetime(oneline_onoff['날짜'], infer_datetime_format=True)
-
 
 # 날짜에 대한 id 열 추가
 date_sub_query = "SELECT id, date FROM date"
@@ -187,18 +171,30 @@ df_new = pd.DataFrame()
 for i in range(5, 24):  # 변경 해야할 열의 개수에 맞게 설정
     df_temp = oneline_onoff[['날짜', '호선_x', '역번호', '역명_x', 'date_id', f'{i}시-{i + 1}시_x', f'{i}시-{i + 1}시_y']].rename(
         columns={'호선_x': '호선', '역명_x': '역명', f'{i}시-{i + 1}시_x': 'on_board', f'{i}시-{i + 1}시_y': 'off_board'})
-    df_temp['time_stamp_id'] = i + 15  # 'i' 열 추가
+    df_temp['time_stamp_id'] = i + 8  # 'i' 열 추가
     df_new = pd.concat([df_new, df_temp])
 
 # 총 605734개/2 *19(시간대 별) = 5754473개 행이 존재
 
-# 참조 테이블 쿼리
-precipitation_sub_query = "SELECT * FROM precipitation"
+# TODO: testtestestestestestest# TODO: testtestestestestestest# TODO: testtestestestestestest
+
+# Precipitation 테이블 참조
+precipitation_sub_query = "SELECT id, date_id, time_stamp_id FROM precipitation"
 cursor.execute(precipitation_sub_query)
 
-for precipitation_id, precipitation, date_id, time_stamp_id in cursor:
+for id, date_id, time_stamp_id in cursor:
     mask = (df_new['date_id'] == date_id) & (df_new['time_stamp_id'] == time_stamp_id)
-    df_new.loc[mask, 'precipitation_id'] = precipitation_id
+
+    if mask.sum() == 0:
+        print("No such row found", date_id, time_stamp_id)
+    else:
+        df_new.loc[mask, 'precipitation_id'] = id
+        # 필터링된 유일한 행에 대한 추가 작업 수행
+
+#
+# print(df_new.head())
+# TODO: testtestestestestestest# TODO: testtestestestestestest# TODO: testtestestestestestest
+
 
 # # 결측치가 있는 행 찾기
 # missing_rows = df_new[df_new['precipitation_id'].isna()]
@@ -213,7 +209,7 @@ final_result = final_result.rename(columns={'역번호': 'subway_station_id'})
 new_column_order = ['id', 'off_board', 'on_board', 'precipitation_id', 'subway_station_id']
 final_result = final_result.reindex(columns=new_column_order)
 
-# print(final_result.head(20))
+# print(final_result.head(20))z
 
 # # 결측치가 있는 행 찾기
 # missing_rows = final_result[final_result['precipitation_id'].isna()]
@@ -233,9 +229,6 @@ VALUES (%s, %s, %s, %s, %s)
 for row in final_result.itertuples(index=False):
     cursor.execute(subway_usage_query, row)
 print("done execution")
-
-# TODO --------------------------------------------REFACTOR TEST--------------------------------------------------------
-# TODO -----------------------------------------------------------------------------------------------------------------
 
 # 변경 사항 커밋
 connection.commit()
